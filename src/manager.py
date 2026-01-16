@@ -74,6 +74,9 @@ class VersionManager:
         version_to_link = {}
         extracted_root_to_link_name = {}
 
+        # Track which Persists items are actually managed versions
+        managed_links = set()
+
         # 1. Analyze Persists to establish Naming Priority
         if self.persists_dir.exists():
             for link_path in self.persists_dir.iterdir():
@@ -112,6 +115,8 @@ class VersionManager:
                         link_name = link_path.name
                         version_to_link[folder_name] = link_name
 
+                        managed_links.add(link_name)
+
                         # Establish mapping: RootName -> LinkName
                         root = self.extract_app_name(folder_name)
                         # We prefer the link name as the group name
@@ -140,6 +145,25 @@ class VersionManager:
             if folder_name in version_to_link:
                 groups[group_name]["active_version"] = folder_name
                 groups[group_name]["link_name"] = version_to_link[folder_name]
+
+        # 3. Add unmanaged/external Persists items
+        if self.persists_dir.exists():
+            for link_path in self.persists_dir.iterdir():
+                if link_path.name not in managed_links:
+                    # This is either a regular directory or a link pointing elsewhere
+                    # We add it as a group with no versions
+                    group_name = link_path.name
+
+                    if group_name not in groups:
+                        groups[group_name] = {
+                            "versions": [],
+                            "active_version": None,
+                            "link_name": group_name,
+                        }
+                    else:
+                        # Ensure link_name is set if it wasn't
+                        if groups[group_name]["link_name"] is None:
+                            groups[group_name]["link_name"] = group_name
 
         return groups
 
@@ -233,7 +257,7 @@ class VersionManager:
 
         # Match version numbers: separator + digit + dot/end
         # e.g. "-1.0", " 2.0"
-        version_pattern = r"(?i)[-_. ]v?\d+(\.|_|\d|x|b|a)"
+        version_pattern = r"(?i)[-_. ]v?\d+(\.|_|\d|x|b|a|$)"
 
         # Match just a number block at the end if strict (like FanControl_243)
         # separator + digit+

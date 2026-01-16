@@ -16,25 +16,26 @@ except ImportError:
     from manager import VersionManager
 
 
-def show_snack(page, message, color=None):
+async def show_snack(page, message, color=None):
     snack = ft.SnackBar(ft.Text(message), bgcolor=color)
     page.overlay.append(snack)
     snack.open = True
     page.update()
 
 
-def main(page: ft.Page):
+async def main(page: ft.Page):
     page.title = "Pivot"
     page.theme_mode = ft.ThemeMode.LIGHT
     page.window.width = 800
     page.window.height = 600
 
+    # Center window
+    await page.window.center()
+
     # Initialize Manager
-    # In a larger app, this might be a singleton or injected dependency
     manager = VersionManager()
 
-    # UI Components
-    # Using Column + ResponsiveRow for grid-like layout with variable height items
+    # UI Setup
     versions_grid = ft.ResponsiveRow(spacing=10, run_spacing=10)
 
     scroll_container = ft.Column(
@@ -44,17 +45,35 @@ def main(page: ft.Page):
         spacing=0,
     )
 
-    def refresh_list():
+    async def handle_link_click(e):
+        app_name = e.control.data["app"]
+        folder_name = e.control.data["folder"]
+
+        try:
+            # force=True allows switching versions (overwriting existing link)
+            manager.create_link(app_name, folder_name, force=True)
+
+            await show_snack(
+                page, f"Linked {app_name} -> {folder_name}", ft.Colors.GREEN
+            )
+
+            # Refresh to show updated state
+            await refresh_list()
+
+        except Exception as ex:
+            await show_snack(page, f"Failed to link {app_name}: {ex}", ft.Colors.ERROR)
+
+    async def refresh_list():
         versions_grid.controls.clear()
 
         try:
             groups = manager.get_grouped_versions()
         except Exception as ex:
-            show_snack(page, f"Error scanning versions: {ex}", ft.Colors.ERROR)
+            await show_snack(page, f"Error scanning versions: {ex}", ft.Colors.ERROR)
             return
 
         if not groups:
-            show_snack(page, "No versions found! 📂", ft.Colors.ORANGE)
+            await show_snack(page, "No versions found! 📂", ft.Colors.ORANGE)
         else:
             # Sort groups by app name
             sorted_apps = sorted(groups.keys())
@@ -89,10 +108,10 @@ def main(page: ft.Page):
                         ),
                     ]
 
-                    # Action container (Fixed width/height to prevent layout jump)
+                    # Action container
                     action_container = ft.Container(
-                        width=80,  # Fixed width for the action area
-                        alignment=ft.Alignment(1.0, 0.0),  # center_right
+                        width=80,
+                        alignment=ft.Alignment(1.0, 0.0),
                     )
 
                     if is_active:
@@ -104,7 +123,6 @@ def main(page: ft.Page):
                                 weight=ft.FontWeight.BOLD,
                             ),
                             padding=5,
-                            # bgcolor removed to blend with row
                             border_radius=4,
                         )
                     else:
@@ -129,11 +147,44 @@ def main(page: ft.Page):
                                 alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
                             ),
-                            # Fix deprecation warning
                             padding=ft.Padding(left=5, top=2, right=0, bottom=2),
                             bgcolor=ft.Colors.GREEN_50 if is_active else None,
                             border_radius=4,
-                            height=40,  # Fixed height to prevent jumps
+                            height=40,
+                        )
+                    )
+
+                # Check if it's an unmanaged group (Persists only)
+                if not versions:
+                    # Add a special row for unmanaged version
+                    link_name = data.get("link_name", app_name)
+
+                    row_controls = [
+                        ft.Icon(
+                            ft.Icons.FOLDER_OPEN,
+                            color=ft.Colors.ORANGE,
+                            size=16,
+                        ),
+                        ft.Text(
+                            f"Current: {link_name}",
+                            expand=True,
+                            size=14,
+                            color=ft.Colors.ORANGE_900,
+                            italic=True,
+                        ),
+                    ]
+
+                    version_rows.append(
+                        ft.Container(
+                            content=ft.Row(
+                                controls=row_controls,
+                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            padding=ft.Padding(left=5, top=2, right=0, bottom=2),
+                            bgcolor=ft.Colors.ORANGE_50,
+                            border_radius=4,
+                            height=40,
                         )
                     )
 
@@ -155,7 +206,6 @@ def main(page: ft.Page):
                                             size=10,
                                             color=ft.Colors.GREY,
                                         ),
-                                        # Fix deprecation warning
                                         padding=ft.Padding(
                                             left=5, top=0, right=0, bottom=0
                                         ),
@@ -172,28 +222,11 @@ def main(page: ft.Page):
                     border=ft.Border.all(1, ft.Colors.GREY_300),
                     border_radius=8,
                     bgcolor=ft.Colors.WHITE,
-                    # Responsive columns: 12 (full) on small, 6 (half) on med, 4 (third) on large
                     col={"xs": 12, "md": 6, "xl": 4},
                 )
                 versions_grid.controls.append(card)
 
         page.update()
-
-    def handle_link_click(e):
-        app_name = e.control.data["app"]
-        folder_name = e.control.data["folder"]
-
-        try:
-            # force=True allows switching versions (overwriting existing link)
-            manager.create_link(app_name, folder_name, force=True)
-
-            show_snack(page, f"Linked {app_name} -> {folder_name}", ft.Colors.GREEN)
-
-            # Refresh to show updated state
-            refresh_list()
-
-        except Exception as ex:
-            show_snack(page, f"Failed to link {app_name}: {ex}", ft.Colors.ERROR)
 
     # Layout
     header = ft.Container(
@@ -216,7 +249,7 @@ def main(page: ft.Page):
     page.add(header, ft.Divider(height=1, thickness=1), scroll_container)
 
     # Initial Load
-    refresh_list()
+    await refresh_list()
 
 
 if __name__ == "__main__":
