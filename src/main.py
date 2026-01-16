@@ -1,255 +1,122 @@
 import sys
+import asyncio
 from pathlib import Path
 
-# Ensure project root is in sys.path so 'from src.manager import ...' works
-# even when flet runs this script directly from the src directory.
+# Ensure project root is in sys.path
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 import flet as ft
 
-# Try importing from src package (Dev mode from root), otherwise fall back to local import (Packaged/Dev from src)
 try:
     from src.manager import VersionManager
+    from src.state import AppState
+    from src.ui.toolbar import PivotToolbar
+    from src.ui.version_grid import VersionGrid
+    from src.ui.utils import show_snack
 except ImportError:
     from manager import VersionManager
-
-
-async def show_snack(page, message, color=None):
-    snack = ft.SnackBar(ft.Text(message), bgcolor=color)
-    page.overlay.append(snack)
-    snack.open = True
-    page.update()
+    from state import AppState
+    from ui.toolbar import PivotToolbar
+    from ui.version_grid import VersionGrid
+    from ui.utils import show_snack
 
 
 async def main(page: ft.Page):
     page.title = "Pivot"
     page.theme_mode = ft.ThemeMode.LIGHT
-    page.window.width = 800
-    page.window.height = 600
+    page.window.width = 1000
+    page.window.height = 700
+    page.padding = 0
+
+    # Initialize Core Objects
+    manager = VersionManager()
+    app_state = AppState()
 
     # Center window
     await page.window.center()
 
-    # Initialize Manager
-    manager = VersionManager()
+    # -- Actions --
 
-    # UI Setup
-    versions_grid = ft.ResponsiveRow(spacing=10, run_spacing=10)
+    async def execute_batch_link():
+        """Iterate through selected versions and link them."""
+        # Get snapshot of tasks to avoid modification issues during iteration
+        tasks = list(app_state.selected_versions.items())
 
-    scroll_container = ft.Column(
-        controls=[versions_grid],
-        scroll=ft.ScrollMode.AUTO,
-        expand=True,
-        spacing=0,
-    )
-
-    async def handle_link_click(e):
-        app_name = e.control.data["app"]
-        folder_name = e.control.data["folder"]
-
-        try:
-            # force=True allows switching versions (overwriting existing link)
-            manager.create_link(app_name, folder_name, force=True)
-
-            await show_snack(
-                page, f"Linked {app_name} -> {folder_name}", ft.Colors.GREEN
-            )
-
-            # Refresh to show updated state
-            await refresh_list()
-
-        except Exception as ex:
-            await show_snack(page, f"Failed to link {app_name}: {ex}", ft.Colors.ERROR)
-
-    async def refresh_list():
-        versions_grid.controls.clear()
-
-        try:
-            groups = manager.get_grouped_versions()
-        except Exception as ex:
-            await show_snack(page, f"Error scanning versions: {ex}", ft.Colors.ERROR)
+        if not tasks:
             return
 
-        if not groups:
-            await show_snack(page, "No versions found! 📂", ft.Colors.ORANGE)
+        success_count = 0
+        fail_count = 0
+
+        await show_snack(page, "Processing batch links...", ft.Colors.BLUE)
+
+        for app_name, version in tasks:
+            try:
+                # Small delay for UI responsiveness
+                await asyncio.sleep(0.01)
+                manager.create_link(app_name, version, force=True)
+                success_count += 1
+            except Exception as ex:
+                print(f"Failed to link {app_name}: {ex}")
+                fail_count += 1
+
+        # Clear selection after processing
+        app_state.clear_all()
+
+        # Refresh Data
+        await versions_grid.refresh_data()
+
+        if fail_count > 0:
+            await show_snack(
+                page, f"Linked {success_count}. Failed: {fail_count}", ft.Colors.ORANGE
+            )
         else:
-            # Sort groups by app name
-            sorted_apps = sorted(groups.keys())
+            await show_snack(
+                page, f"Successfully linked {success_count} apps!", ft.Colors.GREEN
+            )
 
-            for app_name in sorted_apps:
-                data = groups[app_name]
-                versions = data["versions"]
-                active_version = data["active_version"]
+    def select_latest_available():
+        """Selects the newest version for all apps where the newest is not currently active."""
+        if not hasattr(versions_grid, "groups"):
+            return
 
-                # Sort versions descending (newest first)
-                sorted_versions = sorted(versions, reverse=True)
+        for app_name, data in versions_grid.groups.items():
+            versions = data["versions"]
+            if not versions:
+                continue
 
-                # Create rows for each version
-                version_rows = []
-                for v_folder in sorted_versions:
-                    is_active = v_folder == active_version
+            # Get newest (sort descending)
+            newest = sorted(versions, reverse=True)[0]
 
-                    # Row controls
-                    row_controls = [
-                        ft.Icon(
-                            ft.Icons.CHECK_CIRCLE
-                            if is_active
-                            else ft.Icons.CIRCLE_OUTLINED,
-                            color=ft.Colors.GREEN if is_active else ft.Colors.GREY_300,
-                            size=16,
-                        ),
-                        ft.Text(
-                            v_folder,
-                            expand=True,
-                            size=14,
-                            color=ft.Colors.BLACK if is_active else ft.Colors.GREY_700,
-                        ),
-                    ]
+            # Select if the newest is NOT the currently active one
+            if data["active_version"] != newest:
+                app_state.select(app_name, newest)
 
-                    # Action container
-                    action_container = ft.Container(
-                        width=80,
-                        alignment=ft.Alignment(1.0, 0.0),
-                    )
+    # -- Components --
 
-                    if is_active:
-                        action_container.content = ft.Container(
-                            content=ft.Text(
-                                "Active",
-                                color=ft.Colors.GREEN,
-                                size=12,
-                                weight=ft.FontWeight.BOLD,
-                            ),
-                            padding=5,
-                            border_radius=4,
-                        )
-                    else:
-                        action_container.content = ft.IconButton(
-                            icon=ft.Icons.LINK,
-                            tooltip="Link this version",
-                            on_click=handle_link_click,
-                            data={"app": app_name, "folder": v_folder},
-                            icon_size=18,
-                            style=ft.ButtonStyle(
-                                padding=5,
-                                shape=ft.RoundedRectangleBorder(radius=4),
-                            ),
-                        )
+    versions_grid = VersionGrid(page, manager, app_state)
 
-                    row_controls.append(action_container)
-
-                    version_rows.append(
-                        ft.Container(
-                            content=ft.Row(
-                                controls=row_controls,
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            ),
-                            padding=ft.Padding(left=5, top=2, right=0, bottom=2),
-                            bgcolor=ft.Colors.GREEN_50 if is_active else None,
-                            border_radius=4,
-                            height=40,
-                        )
-                    )
-
-                # Check if it's an unmanaged group (Persists only)
-                if not versions:
-                    # Add a special row for unmanaged version
-                    link_name = data.get("link_name", app_name)
-
-                    row_controls = [
-                        ft.Icon(
-                            ft.Icons.FOLDER_OPEN,
-                            color=ft.Colors.ORANGE,
-                            size=16,
-                        ),
-                        ft.Text(
-                            f"Current: {link_name}",
-                            expand=True,
-                            size=14,
-                            color=ft.Colors.ORANGE_900,
-                            italic=True,
-                        ),
-                    ]
-
-                    version_rows.append(
-                        ft.Container(
-                            content=ft.Row(
-                                controls=row_controls,
-                                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            ),
-                            padding=ft.Padding(left=5, top=2, right=0, bottom=2),
-                            bgcolor=ft.Colors.ORANGE_50,
-                            border_radius=4,
-                            height=40,
-                        )
-                    )
-
-                # App Card
-                card = ft.Container(
-                    content=ft.Column(
-                        controls=[
-                            ft.Row(
-                                controls=[
-                                    ft.Icon(
-                                        ft.Icons.APPS, size=16, color=ft.Colors.BLUE
-                                    ),
-                                    ft.Text(
-                                        app_name, size=16, weight=ft.FontWeight.BOLD
-                                    ),
-                                    ft.Container(
-                                        content=ft.Text(
-                                            f"{len(versions)} versions",
-                                            size=10,
-                                            color=ft.Colors.GREY,
-                                        ),
-                                        padding=ft.Padding(
-                                            left=5, top=0, right=0, bottom=0
-                                        ),
-                                    ),
-                                ],
-                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                            ),
-                            ft.Divider(height=5, thickness=1),
-                            ft.Column(controls=version_rows, spacing=0),
-                        ],
-                        spacing=5,
-                    ),
-                    padding=10,
-                    border=ft.Border.all(1, ft.Colors.GREY_300),
-                    border_radius=8,
-                    bgcolor=ft.Colors.WHITE,
-                    col={"xs": 12, "md": 6, "xl": 4},
-                )
-                versions_grid.controls.append(card)
-
-        page.update()
-
-    # Layout
-    header = ft.Container(
-        content=ft.Row(
-            controls=[
-                ft.Text("Pivot", size=30, weight=ft.FontWeight.BOLD),
-                ft.Chip(
-                    label=ft.Text(
-                        "Dev Mode" if "dummy" in str(manager.versions_dir) else "Prod"
-                    ),
-                    color=ft.Colors.BLUE_200,
-                ),
-            ],
-            alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
-        ),
-        padding=20,
-        bgcolor=ft.Colors.GREY_100,
+    toolbar = PivotToolbar(
+        page,
+        app_state,
+        on_link_action=execute_batch_link,
+        on_select_latest=select_latest_available,
     )
 
-    page.add(header, ft.Divider(height=1, thickness=1), scroll_container)
+    # -- Layout --
+
+    layout = ft.Column(
+        controls=[toolbar, ft.Divider(height=1, thickness=1), versions_grid],
+        spacing=0,
+        expand=True,
+    )
+
+    page.add(layout)
 
     # Initial Load
-    await refresh_list()
+    await versions_grid.refresh_data()
 
 
 if __name__ == "__main__":
