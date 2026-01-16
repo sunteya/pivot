@@ -1,6 +1,6 @@
 import shutil
-from src.manager import VersionManager
-from src.config import PERSISTS_DIR, VERSIONS_DIR
+from manager import VersionManager
+from config import PERSISTS_DIR, VERSIONS_DIR
 
 
 def test_linking():

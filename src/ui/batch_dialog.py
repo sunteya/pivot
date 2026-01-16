@@ -1,6 +1,13 @@
 import asyncio
+from typing import TypedDict
 import flet as ft
-from src.ui.utils import show_snack
+
+from ui.utils import show_snack
+
+
+class BatchControlItem(TypedDict):
+    checkbox: ft.Checkbox
+    dropdown: ft.Dropdown
 
 
 class BatchLinkDialog:
@@ -36,7 +43,7 @@ class BatchLinkDialog:
             return
 
         # UI Components storage
-        batch_controls = {}
+        batch_controls: dict[str, BatchControlItem] = {}
 
         dialog_content = ft.Column(
             scroll=ft.ScrollMode.AUTO,
@@ -75,9 +82,16 @@ class BatchLinkDialog:
             )
             dialog_content.controls.append(row)
 
+        # Define dialog reference first for closure access
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text(f"Batch Link ({len(unlinked_apps)} found)"),
+            content=dialog_content,
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+
         def close_dialog(e=None):
-            self.page.dialog.open = False
-            self.page.update()
+            self.page.close(dialog)  # type: ignore[attr-defined]
 
         async def execute_batch(e):
             close_dialog()
@@ -113,22 +127,15 @@ class BatchLinkDialog:
             if self.on_success:
                 await self.on_success()
 
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text(f"Batch Link ({len(unlinked_apps)} found)"),
-            content=dialog_content,
-            actions=[
-                ft.TextButton("Cancel", on_click=close_dialog),
-                ft.ElevatedButton(
-                    "Link Selected",
-                    on_click=execute_batch,
-                    bgcolor=ft.Colors.BLUE,
-                    color=ft.Colors.WHITE,
-                ),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
+        # Update dialog actions
+        dialog.actions = [
+            ft.TextButton("Cancel", on_click=close_dialog),
+            ft.ElevatedButton(
+                "Link Selected",
+                on_click=execute_batch,
+                bgcolor=ft.Colors.BLUE,
+                color=ft.Colors.WHITE,
+            ),
+        ]
 
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self.page.open(dialog)  # type: ignore[attr-defined]

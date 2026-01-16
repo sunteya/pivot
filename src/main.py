@@ -2,25 +2,13 @@ import sys
 import asyncio
 from pathlib import Path
 
-# Ensure project root is in sys.path
-project_root = Path(__file__).parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 import flet as ft
 
-try:
-    from src.manager import VersionManager
-    from src.state import AppState
-    from src.ui.toolbar import PivotToolbar
-    from src.ui.version_grid import VersionGrid
-    from src.ui.utils import show_snack
-except ImportError:
-    from manager import VersionManager
-    from state import AppState
-    from ui.toolbar import PivotToolbar
-    from ui.version_grid import VersionGrid
-    from ui.utils import show_snack
+from manager import VersionManager
+from state import AppState
+from ui.toolbar import PivotToolbar
+from ui.version_grid import VersionGrid
+from ui.utils import show_snack
 
 
 async def main(page: ft.Page):

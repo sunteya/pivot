@@ -1,5 +1,6 @@
 import flet as ft
-from src.state import AppState
+
+from state import AppState
 
 
 class PivotToolbar(ft.Container):

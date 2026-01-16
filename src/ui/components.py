@@ -1,5 +1,6 @@
 import flet as ft
-from src.state import AppState
+
+from state import AppState
 
 
 class VersionRow(ft.Container):
@@ -49,6 +50,7 @@ class VersionRow(ft.Container):
             )
 
         # Right Action/Status
+        right_content: ft.Control
         if self.is_active:
             right_content = ft.Row(
                 controls=[
@@ -146,7 +148,7 @@ class AppCard(ft.Container):
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-        rows = []
+        rows: list[ft.Control] = []
 
         # Sort versions descending
         sorted_versions = sorted(self.versions, reverse=True)

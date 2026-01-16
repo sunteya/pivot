@@ -20,4 +20,3 @@ if %errorlevel% neq 0 (
 echo [SUCCESS] Build finished! 
 echo The executable is located at: dist\pivot.exe
 echo.
-pause

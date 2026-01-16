@@ -2,18 +2,19 @@ import os
 import re
 import shutil
 from pathlib import Path
+from typing import TypedDict
 
 import subprocess
 import platform
 
 # Import from local config
-# Note: when running this file directly as script, imports might fail without sys.path hack
-# but we will run it via 'uv run python -m src.manager' or similar.
-try:
-    from src.config import VERSIONS_DIR, PERSISTS_DIR
-except ImportError:
-    # Fallback for direct execution testing
-    from config import VERSIONS_DIR, PERSISTS_DIR
+from config import VERSIONS_DIR, PERSISTS_DIR
+
+
+class AppGroup(TypedDict):
+    versions: list[str]
+    active_version: str | None
+    link_name: str | None
 
 
 class VersionManager:
@@ -58,7 +59,7 @@ class VersionManager:
         except OSError:
             return None
 
-    def get_grouped_versions(self) -> dict[str, dict]:
+    def get_grouped_versions(self) -> dict[str, AppGroup]:
         """
         Returns a dictionary grouping versions by app name.
         Structure:
@@ -70,7 +71,7 @@ class VersionManager:
             }
         }
         """
-        groups = {}
+        groups: dict[str, AppGroup] = {}
         version_to_link = {}
         extracted_root_to_link_name = {}
 

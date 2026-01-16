@@ -15,6 +15,7 @@ dependencies = [
 [dependency-groups]
 dev = [
   "flet[all]>=0.80.2",
+  "mypy>=1.19.1",
   "pillow>=12.1.0",
   "pyinstaller>=6.18.0",
   "pytest>=9.0.2",
@@ -29,3 +30,17 @@ copyright = "Copyright (C) 2026 by Flet"
 
 [tool.flet.app]
 path = "src"
+
+[tool.pytest.ini_options]
+pythonpath = "src"
+
+[tool.mypy]
+files = "src"
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+check_untyped_defs = true
+ignore_missing_imports = true
+explicit_package_bases = true
+mypy_path = "src"

@@ -1,7 +1,8 @@
 import flet as ft
-from src.state import AppState
-from src.ui.components import AppCard
-from src.ui.utils import show_snack
+
+from state import AppState
+from ui.components import AppCard
+from ui.utils import show_snack
 
 
 class VersionGrid(ft.Column):
