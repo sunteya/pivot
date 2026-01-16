@@ -33,6 +33,116 @@ class VersionManager:
             return []
         return [d.name for d in self.persists_dir.iterdir()]
 
+    def resolve_link_target(self, link_path: Path) -> Path | None:
+        """
+        Resolves the target of a symlink or junction.
+        Returns absolute Path to target if successful, else None.
+        """
+        try:
+            if link_path.is_symlink():
+                target = link_path.readlink()
+                if not target.is_absolute():
+                    target = link_path.parent / target
+                return target.resolve()
+
+            # Python 3.10+ readlink supports junctions
+            if link_path.exists():
+                try:
+                    target = link_path.readlink()
+                    if not target.is_absolute():
+                        target = link_path.parent / target
+                    return target.resolve()
+                except OSError:
+                    pass
+            return None
+        except OSError:
+            return None
+
+    def get_grouped_versions(self) -> dict[str, dict]:
+        """
+        Returns a dictionary grouping versions by app name.
+        Structure:
+        {
+            "AppName": {
+                "versions": ["v1", "v2"],
+                "active_version": "v1" | None,  # The folder name that is currently linked
+                "link_name": "AppName" | None   # The name of the link in Persists
+            }
+        }
+        """
+        groups = {}
+        version_to_link = {}
+        extracted_root_to_link_name = {}
+
+        # 1. Analyze Persists to establish Naming Priority
+        if self.persists_dir.exists():
+            for link_path in self.persists_dir.iterdir():
+                target = self.resolve_link_target(link_path)
+                if target:
+                    # Check if target is inside Versions
+                    # resolve() returns absolute path.
+                    # We need to check if it's relative to self.versions_dir
+                    try:
+                        # Ensure both are resolved to avoid symlink/casing mismatches in parents
+                        # But self.versions_dir might not be fully resolved if Config doesn't do it.
+                        # target is already resolved() in resolve_link_target.
+
+                        # Use resolve() on versions_dir to be safe
+                        versions_root = self.versions_dir.resolve()
+
+                        # Handle Windows Long Path prefix (\\?\) mismatch
+                        # target might have it, versions_root might not
+                        target_str = str(target)
+                        root_str = str(versions_root)
+
+                        if target_str.startswith("\\\\?\\"):
+                            target_str = target_str[4:]
+                            target = Path(target_str)
+
+                        if root_str.startswith("\\\\?\\"):
+                            root_str = root_str[4:]
+                            versions_root = Path(root_str)
+
+                        relative_target = target.relative_to(versions_root)
+                        # It is a version!
+                        folder_name = relative_target.parts[
+                            0
+                        ]  # Get the top-level folder name
+
+                        link_name = link_path.name
+                        version_to_link[folder_name] = link_name
+
+                        # Establish mapping: RootName -> LinkName
+                        root = self.extract_app_name(folder_name)
+                        # We prefer the link name as the group name
+                        extracted_root_to_link_name[root] = link_name
+
+                    except ValueError:
+                        # Target is not in Versions dir, ignore
+                        pass
+
+        # 2. Group all available versions
+        for folder_name in self.scan_versions():
+            root = self.extract_app_name(folder_name)
+
+            # Determine Group Name: Use Link Name if available for this root, else Root Name
+            group_name = extracted_root_to_link_name.get(root, root)
+
+            if group_name not in groups:
+                groups[group_name] = {
+                    "versions": [],
+                    "active_version": None,
+                    "link_name": None,
+                }
+            groups[group_name]["versions"].append(folder_name)
+
+            # Check if this specific version is the active one
+            if folder_name in version_to_link:
+                groups[group_name]["active_version"] = folder_name
+                groups[group_name]["link_name"] = version_to_link[folder_name]
+
+        return groups
+
     def get_unlinked_versions(self) -> list[tuple[str, str]]:
         """
         Returns a list of (App Name, Original Folder Name) for items
@@ -51,15 +161,25 @@ class VersionManager:
 
         return unlinked
 
-    def create_link(self, app_name: str, folder_name: str) -> None:
+    def create_link(self, app_name: str, folder_name: str, force: bool = False) -> None:
         """
         Creates a symlink (or junction on Windows): Persists/app_name -> Versions/folder_name
         """
         src = self.versions_dir / folder_name
         dst = self.persists_dir / app_name
 
-        if dst.exists():
-            raise FileExistsError(f"Target {dst} already exists.")
+        if dst.exists() or dst.is_symlink():
+            if force:
+                if dst.is_symlink() or dst.is_file():
+                    dst.unlink()
+                else:
+                    # Directory or Junction
+                    try:
+                        dst.rmdir()  # Works for Junctions and empty dirs
+                    except OSError:
+                        shutil.rmtree(dst)  # Non-empty directory
+            else:
+                raise FileExistsError(f"Target {dst} already exists.")
 
         # Create Symlink
         # target_is_directory=True is crucial for Windows

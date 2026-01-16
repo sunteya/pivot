@@ -1,6 +1,4 @@
 import shutil
-import os
-from pathlib import Path
 from src.manager import VersionManager
 from src.config import PERSISTS_DIR, VERSIONS_DIR
 
