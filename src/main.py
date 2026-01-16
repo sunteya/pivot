@@ -8,7 +8,12 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 import flet as ft
-from src.manager import VersionManager
+
+# Try importing from src package (Dev mode from root), otherwise fall back to local import (Packaged/Dev from src)
+try:
+    from src.manager import VersionManager
+except ImportError:
+    from manager import VersionManager
 
 
 def show_snack(page, message, color=None):

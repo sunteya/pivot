@@ -15,6 +15,8 @@ dependencies = [
 [dependency-groups]
 dev = [
   "flet[all]>=0.80.2",
+  "pillow>=12.1.0",
+  "pyinstaller>=6.18.0",
   "pytest>=9.0.2",
   "ruff>=0.14.13",
 ]
