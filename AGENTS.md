@@ -58,11 +58,11 @@ We use `pytest` for unit testing, especially for file system logic.
   ```
 - **Run Single Test File**:
   ```bash
-  uv run pytest tests/test_manager.py
+  uv run pytest tests/test_linking.py
   ```
 - **Run Specific Test Case**:
   ```bash
-  uv run pytest tests/test_manager.py::test_link_creation -v
+  uv run pytest tests/test_linking.py::test_create_link_success -v
   ```
 
 *Note: If `pytest` or `ruff` are missing, add them via `uv add --dev pytest ruff`.*
@@ -90,11 +90,11 @@ We use `pytest` for unit testing, especially for file system logic.
 ### Flet Specifics
 - **Import Style**: Always use `import flet as ft`.
 - **Component Structure**:
-  - Break complex UI into separate classes inheriting from `ft.UserControl` (or `ft.Column`/`ft.Row` in newer Flet versions).
-  - Avoid massive `main` functions.
+  - Break complex UI into separate classes inheriting from `ft.Container`, `ft.Column`, or `ft.Row`.
+  - Avoid massive `main` functions; keep `main.py` clean.
 - **Event Handlers**:
   - Name handlers as `on_<event>_<element>` or `<action>_click`.
-  - Example: `on_submit_click(e: ft.ControlEvent)`.
+  - Example: `on_submit_click(e: ft.ControlEvent)` or `on_link_version(app_name: str)`.
 
 ### Error Handling
 - Use `try/except` blocks specifically for file system operations (Symlink creation can fail due to permissions).
@@ -110,11 +110,33 @@ We use `pytest` for unit testing, especially for file system logic.
   - For directories on Windows, ensure `target_is_directory=True` is considered if using low-level calls, though `Path` handles much of this.
   - Distinguish between **Junctions** (mklink /J) and **Symlinks** (mklink /D). Pivot prefers Symlinks but may fallback to Junctions if configured.
 
+### Environment Abstraction
+- **Dev vs Prod**:
+  - The app detects if it is frozen (packaged via PyInstaller) via `sys.frozen`.
+  - In **Dev** (local run): Root is `parent/dummy` relative to source. Use `dummy/Versions` and `dummy/Persists` to avoid messing with real system files.
+  - In **Prod** (exe): Root is the executable's directory.
+- **Config**: Always import paths from `src/config.py` rather than hardcoding them.
+
 ### State Management
 - For simple state, use `page.client_storage` or variable passing.
-- For complex app state, implement a dedicated State class or Service.
+- For complex app state (like selection tracking), implement a dedicated State class (e.g., `AppState` in `src/state.py`) that uses the Observer pattern.
 
-## 5. Documentation
+## 5. Git & Workflow Guidelines
+
+### Commit Messages
+Use semantic commit messages to keep history clean:
+- `feat:` New features (e.g., "feat: add folder open button")
+- `fix:` Bug fixes (e.g., "fix: resolve path issue on windows")
+- `docs:` Documentation changes
+- `style:` Formatting, missing semi-colons, etc; no production code change
+- `refactor:` Refactoring production code, eg. renaming a variable
+- `test:` Adding missing tests, refactoring tests; no production code change
+
+### Pull Requests
+- Keep PRs small and focused on a single task.
+- Ensure `ruff check .` and `pytest` pass before requesting review.
+
+## 6. Documentation
 - Update `README.md` if architectural changes occur.
 - Docstrings: Use Google-style docstrings for complex logic (especially the Symlink manager).
 
