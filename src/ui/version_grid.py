@@ -2,7 +2,7 @@ import flet as ft
 
 from state import AppState
 from ui.components import AppCard
-from ui.utils import show_snack
+from ui.utils import show_snack, reveal_in_explorer
 
 
 class VersionGrid(ft.Column):
@@ -41,6 +41,22 @@ class VersionGrid(ft.Column):
                 self.app_page, f"Failed to link {app_name}: {ex}", ft.Colors.ERROR
             )
 
+    async def on_open_folder(self, app_name: str):
+        """Opens the Persists folder for the given app."""
+        if not hasattr(self, "groups") or app_name not in self.groups:
+            return
+
+        data = self.groups[app_name]
+        link_name = data.get("link_name")
+
+        if link_name:
+            # Open Persists/link_name
+            target = self.manager.persists_dir / link_name
+            reveal_in_explorer(target)
+        else:
+            # Should not happen since button is hidden if unlinked, but fallback just in case
+            pass
+
     async def refresh_data(self):
         """Full data reload from disk"""
         try:
@@ -72,6 +88,7 @@ class VersionGrid(ft.Column):
                     link_name=data.get("link_name"),
                     app_state=self.app_state,
                     on_link_version=self.on_link_version,
+                    on_open_folder=self.on_open_folder,
                 )
                 self.grid.controls.append(card)
 

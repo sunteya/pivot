@@ -1,6 +1,6 @@
 # Pivot
 
-![Pivot Preview](screenshots/flet_2026-01-17_00.48.58.png)
+![Pivot Preview](screenshots/flet_2026-01-17_11.39.30.png)
 
 **Pivot** is a Windows desktop application built with [Flet](https://flet.dev) designed for efficient directory and version management. 
 

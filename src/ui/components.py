@@ -110,6 +110,7 @@ class AppCard(ft.Container):
         link_name: str | None,
         app_state: AppState,
         on_link_version,
+        on_open_folder=None,
     ):
         super().__init__()
         self.app_name = app_name
@@ -118,6 +119,7 @@ class AppCard(ft.Container):
         self.link_name = link_name
         self.app_state = app_state
         self.on_link_version = on_link_version
+        self.on_open_folder = on_open_folder
 
         self.padding = 10
         self.border = ft.Border.all(1, ft.Colors.GREY_300)
@@ -132,9 +134,13 @@ class AppCard(ft.Container):
         if self.on_link_version:
             await self.on_link_version(self.app_name, version)
 
+    async def _handle_folder_click(self, e):
+        if self.on_open_folder:
+            await self.on_open_folder(self.app_name)
+
     def _build_content(self):
-        # Header
-        header = ft.Row(
+        # Header Parts
+        header_left = ft.Row(
             controls=[
                 ft.Icon(ft.Icons.APPS, size=16, color=ft.Colors.BLUE),
                 ft.Text(self.app_name, size=16, weight=ft.FontWeight.BOLD),
@@ -146,6 +152,33 @@ class AppCard(ft.Container):
                 ),
             ],
             vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+        # Header Right (Folder Icon if linked)
+        header_right = ft.Container()  # Empty by default
+        if self.link_name:
+            header_right = ft.Container(
+                content=ft.IconButton(
+                    icon=ft.Icons.FOLDER_OPEN,
+                    tooltip="Open installation folder",
+                    on_click=self._handle_folder_click,
+                    icon_size=18,
+                    icon_color=ft.Colors.GREY_600,
+                    style=ft.ButtonStyle(padding=0),
+                    width=24,
+                    height=24,
+                ),
+                margin=ft.margin.only(right=4),
+            )
+
+        # Combine Header
+        header = ft.Container(
+            content=ft.Row(
+                controls=[header_left, header_right],
+                alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            height=30,  # Fixed height to ensure consistency with or without button
         )
 
         rows: list[ft.Control] = []
