@@ -1,6 +1,4 @@
-import sys
 import asyncio
-from pathlib import Path
 
 import flet as ft
 
@@ -70,17 +68,18 @@ async def main(page: ft.Page):
         if not hasattr(versions_grid, "groups"):
             return
 
-        for app_name, data in versions_grid.groups.items():
-            versions = data["versions"]
-            if not versions:
-                continue
+        with app_state.batch_updates():
+            for app_name, data in versions_grid.groups.items():
+                versions = data["versions"]
+                if not versions:
+                    continue
 
-            # Get newest (sort descending)
-            newest = sorted(versions, reverse=True)[0]
+                # Get newest (sort descending)
+                newest = sorted(versions, reverse=True)[0]
 
-            # Select if the newest is NOT the currently active one
-            if data["active_version"] != newest:
-                app_state.select(app_name, newest)
+                # Select if the newest is NOT the currently active one
+                if data["active_version"] != newest:
+                    app_state.select(app_name, newest)
 
     # -- Components --
 

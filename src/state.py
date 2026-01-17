@@ -1,4 +1,5 @@
 from typing import Callable
+from contextlib import contextmanager
 
 
 class AppState:
@@ -6,6 +7,7 @@ class AppState:
         # selected_versions: {app_name: version_folder}
         self.selected_versions: dict[str, str] = {}
         self._listeners: list[Callable] = []
+        self._is_batching = False
 
     def get_selected(self, app_name: str) -> str | None:
         return self.selected_versions.get(app_name)
@@ -40,5 +42,17 @@ class AppState:
             self._listeners.remove(callback)
 
     def _notify(self):
+        if self._is_batching:
+            return
         for callback in self._listeners:
             callback()
+
+    @contextmanager
+    def batch_updates(self):
+        """Context manager for batch operations to suppress notifications until done."""
+        self._is_batching = True
+        try:
+            yield
+        finally:
+            self._is_batching = False
+            self._notify()
